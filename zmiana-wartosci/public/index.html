@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ZmianaWartości — AI Wycena Rzeczy</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Instrument+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #F5F2EB;
+  --surface: #EDEAE1;
+  --card: #FFFFFF;
+  --ink: #1A1814;
+  --ink-soft: #5C5850;
+  --ink-dim: #9A968E;
+  --green: #2D6A4F;
+  --green-light: #D8F3DC;
+  --green-mid: #74C69D;
+  --amber: #E07B39;
+  --amber-light: #FFF0E6;
+  --red: #C1440E;
+  --red-light: #FDEEE8;
+  --border: rgba(26,24,20,0.1);
+  --shadow: 0 2px 20px rgba(26,24,20,0.08);
+  --shadow-lg: 0 8px 40px rgba(26,24,20,0.12);
+  --font-display: 'Syne', sans-serif;
+  --font-body: 'Instrument Sans', sans-serif;
+  --r: 16px;
+}
+
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── TEXTURE OVERLAY ── */
+body::after {
+  content:'';
+  position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:9999;
+}
+
+/* ── TOP BAR ── */
+.topbar {
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 24px;
+  background:var(--card);
+  border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:100;
+  box-shadow:var(--shadow);
+}
+.logo {
+  font-family:var(--font-display);
+  font-size:20px;font-weight:800;
+  color:var(--ink);letter-spacing:-0.5px;
+}
+.logo span { color:var(--green); }
+
+.usage-badge {
+  display:flex;align-items:center;gap:8px;
+  background:var(--green-light);
+  border:1px solid var(--green-mid);
+  border-radius:100px;
+  padding:6px 14px;
+  font-size:12px;font-weight:600;
+  color:var(--green);
+  cursor:pointer;
+  transition:all .2s;
+}
+.usage-badge:hover { background:#C4EBD1; }
+.usage-dot {
+  width:7px;height:7px;border-radius:50%;
+  background:var(--green);
+  animation:pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.85)} }
+
+/* ── HERO ── */
+.hero {
+  padding:48px 24px 32px;
+  text-align:center;
+  max-width:600px;margin:0 auto;
+}
+.hero-eyebrow {
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--amber-light);
+  border:1px solid rgba(224,123,57,0.25);
+  border-radius:100px;
+  padding:5px 14px;
+  font-size:11px;font-weight:600;
+  color:var(--amber);letter-spacing:1.5px;
+  text-transform:uppercase;margin-bottom:18px;
+}
+.hero h1 {
+  font-family:var(--font-display);
+  font-size:clamp(36px,8vw,52px);
+  font-weight:800;line-height:1.05;
+  letter-spacing:-1.5px;
+  margin-bottom:14px;
+}
+.hero h1 em { color:var(--green);font-style:normal; }
+.hero p {
+  font-size:16px;color:var(--ink-soft);
+  line-height:1.7;font-weight:300;
+  margin-bottom:32px;
+}
+
+/* ── MAIN CARD ── */
+.main-card {
+  background:var(--card);
+  border-radius:24px;
+  box-shadow:var(--shadow-lg);
+  border:1px solid var(--border);
+  margin:0 16px 24px;
+  overflow:hidden;
+}
+
+/* ── PHOTO UPLOAD AREA ── */
+.upload-zone {
+  padding:32px 24px;
+  border-bottom:1px solid var(--border);
+}
+
+.upload-label {
+  font-family:var(--font-display);
+  font-size:13px;font-weight:700;
+  letter-spacing:2px;text-transform:uppercase;
+  color:var(--ink-dim);margin-bottom:12px;
+  display:block;
+}
+
+.drop-area {
+  border:2px dashed var(--border);
+  border-radius:var(--r);
+  padding:36px 24px;
+  text-align:center;
+  cursor:pointer;
+  transition:all .25s;
+  position:relative;
+  background:var(--surface);
+}
+.drop-area:hover, .drop-area.drag { 
+  border-color:var(--green);
+  background:var(--green-light);
+}
+.drop-area input[type=file] {
+  position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;
+}
+.drop-icon {
+  width:52px;height:52px;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto 14px;
+  font-size:24px;
+  box-shadow:var(--shadow);
+}
+.drop-title { font-size:15px;font-weight:500;color:var(--ink);margin-bottom:4px; }
+.drop-sub { font-size:13px;color:var(--ink-dim); }
+
+.preview-grid {
+  display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
+  margin-top:14px;
+}
+.preview-img {
+  aspect-ratio:1;border-radius:10px;
+  object-fit:cover;width:100%;
+  border:1px solid var(--border);
+}
+.preview-remove {
+  position:relative;
+}
+.preview-remove .remove-btn {
+  position:absolute;top:-6px;right:-6px;
+  width:22px;height:22px;
+  background:var(--red);color:#fff;
+  border-radius:50%;border:none;
+  font-size:11px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:700;
+}
+
+/* ── FORM FIELDS ── */
+.form-zone {
+  padding:24px;
+  border-bottom:1px solid var(--border);
+  display:flex;flex-direction:column;gap:16px;
+}
+
+.field-group { display:flex;flex-direction:column;gap:6px; }
+
+.field-label {
+  font-size:11px;font-weight:700;
+  letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--ink-dim);
+}
+
+.field-input {
+  background:var(--surface);
+  border:1.5px solid transparent;
+  border-radius:10px;
+  padding:13px 16px;
+  font-size:15px;
+  font-family:var(--font-body);
+  color:var(--ink);
+  outline:none;
+  transition:border-color .2s,background .2s;
+  width:100%;
+}
+.field-input:focus { border-color:var(--green);background:var(--card); }
+.field-input::placeholder { color:var(--ink-dim); }
+
+.field-row { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
+
+.condition-pills {
+  display:flex;gap:8px;flex-wrap:wrap;
+}
+.pill {
+  padding:8px 16px;
+  border-radius:100px;
+  border:1.5px solid var(--border);
+  font-size:13px;font-weight:500;
+  cursor:pointer;
+  transition:all .2s;
+  background:var(--surface);
+  color:var(--ink-soft);
+  user-select:none;
+}
+.pill:hover { border-color:var(--green);color:var(--green); }
+.pill.active {
+  background:var(--green);
+  border-color:var(--green);
+  color:#fff;
+}
+
+/* ── ANALYZE BUTTON ── */
+.analyze-zone { padding:20px 24px 24px; }
+
+.btn-analyze {
+  width:100%;
+  background:var(--green);
+  color:#fff;
+  border:none;
+  border-radius:14px;
+  padding:18px 24px;
+  font-family:var(--font-display);
+  font-size:17px;font-weight:700;
+  letter-spacing:-0.3px;
+  cursor:pointer;
+  transition:all .2s;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  position:relative;overflow:hidden;
+}
+.btn-analyze::before {
+  content:'';
+  position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,0.1),transparent);
+}
+.btn-analyze:hover { background:#245C42;transform:translateY(-1px);box-shadow:0 6px 20px rgba(45,106,79,0.35); }
+.btn-analyze:active { transform:translateY(0); }
+.btn-analyze:disabled { background:var(--ink-dim);cursor:not-allowed;transform:none;box-shadow:none; }
+
+.btn-icon { font-size:20px; }
+
+/* ── LOADING STATE ── */
+.loading-card {
+  display:none;
+  background:var(--card);
+  border-radius:24px;
+  box-shadow:var(--shadow-lg);
+  border:1px solid var(--border);
+  margin:0 16px 24px;
+  padding:48px 24px;
+  text-align:center;
+}
+.loading-card.visible { display:block; }
+
+.loader-ring {
+  width:64px;height:64px;
+  border:3px solid var(--green-light);
+  border-top-color:var(--green);
+  border-radius:50%;
+  margin:0 auto 20px;
+  animation:spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.loading-steps {
+  display:flex;flex-direction:column;gap:10px;
+  max-width:260px;margin:20px auto 0;
+}
+.loading-step {
+  display:flex;align-items:center;gap:10px;
+  font-size:13px;color:var(--ink-dim);
+  opacity:0.4;transition:opacity .4s,color .4s;
+  text-align:left;
+}
+.loading-step.active { opacity:1;color:var(--ink); }
+.loading-step.done { opacity:0.7;color:var(--green); }
+.step-dot {
+  width:8px;height:8px;border-radius:50%;
+  background:var(--ink-dim);flex-shrink:0;
+  transition:background .4s;
+}
+.loading-step.active .step-dot { background:var(--green);animation:pulse 1s infinite; }
+.loading-step.done .step-dot { background:var(--green); }
+
+/* ── RESULT CARD ── */
+.result-card {
+  display:none;
+  background:var(--card);
+  border-radius:24px;
+  box-shadow:var(--shadow-lg);
+  border:1px solid var(--border);
+  margin:0 16px 24px;
+  overflow:hidden;
+}
+.result-card.visible { display:block; }
+
+.result-header {
+  padding:24px;
+  background:linear-gradient(135deg,var(--green) 0%,#1E5C3A 100%);
+  color:#fff;
+  display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
+}
+
+.result-label {
+  font-size:11px;font-weight:700;
+  letter-spacing:2px;text-transform:uppercase;
+  opacity:0.7;margin-bottom:6px;
+}
+.result-name {
+  font-family:var(--font-display);
+  font-size:22px;font-weight:800;
+  line-height:1.2;margin-bottom:4px;
+  letter-spacing:-0.3px;
+}
+.result-condition {
+  font-size:13px;opacity:0.8;
+}
+
+.price-bubble {
+  background:rgba(255,255,255,0.15);
+  border:1px solid rgba(255,255,255,0.2);
+  border-radius:16px;
+  padding:14px 20px;
+  text-align:center;
+  flex-shrink:0;
+  backdrop-filter:blur(10px);
+}
+.price-range-label {
+  font-size:10px;font-weight:700;
+  letter-spacing:1.5px;opacity:0.7;
+  text-transform:uppercase;margin-bottom:6px;
+}
+.price-main {
+  font-family:var(--font-display);
+  font-size:28px;font-weight:800;
+  line-height:1;letter-spacing:-1px;
+}
+.price-range {
+  font-size:12px;opacity:0.7;margin-top:4px;
+}
+
+/* Result body */
+.result-body { padding:20px 24px; display:flex;flex-direction:column;gap:16px; }
+
+/* Score meter */
+.score-section { }
+.score-label-row {
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:8px;
+}
+.score-title { font-size:13px;font-weight:600;color:var(--ink-soft); }
+.score-value {
+  font-family:var(--font-display);
+  font-size:16px;font-weight:700;
+}
+.score-bar {
+  height:8px;background:var(--surface);border-radius:100px;overflow:hidden;
+}
+.score-fill {
+  height:100%;border-radius:100px;
+  background:linear-gradient(90deg,var(--green),var(--green-mid));
+  transition:width 1.2s cubic-bezier(.23,1,.32,1);
+}
+
+/* Insights */
+.insights-grid {
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;
+}
+.insight-chip {
+  background:var(--surface);
+  border-radius:12px;padding:14px;
+  border:1px solid var(--border);
+}
+.insight-chip-label {
+  font-size:10px;font-weight:700;
+  letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--ink-dim);margin-bottom:5px;
+}
+.insight-chip-value {
+  font-size:14px;font-weight:600;color:var(--ink);
+}
+
+/* Tips */
+.tips-section { }
+.tips-title {
+  font-family:var(--font-display);
+  font-size:16px;font-weight:700;
+  margin-bottom:12px;
+}
+.tip-item {
+  display:flex;gap:10px;align-items:flex-start;
+  padding:10px 0;border-bottom:1px solid var(--border);
+}
+.tip-item:last-child { border-bottom:none;padding-bottom:0; }
+.tip-icon {
+  width:28px;height:28px;border-radius:8px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:14px;
+}
+.tip-icon.green { background:var(--green-light); }
+.tip-icon.amber { background:var(--amber-light); }
+.tip-icon.red { background:var(--red-light); }
+.tip-text { font-size:13px;color:var(--ink-soft);line-height:1.55; }
+.tip-text strong { color:var(--ink);font-weight:600; }
+
+/* Platforms */
+.platforms-section { }
+.platforms-title {
+  font-family:var(--font-display);
+  font-size:16px;font-weight:700;
+  margin-bottom:12px;
+}
+.platform-row {
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 0;border-bottom:1px solid var(--border);
+}
+.platform-row:last-child { border-bottom:none;padding-bottom:0; }
+.platform-info { display:flex;align-items:center;gap:10px; }
+.platform-logo {
+  width:34px;height:34px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;font-weight:700;
+  font-family:var(--font-display);
+}
+.platform-name { font-size:14px;font-weight:600; }
+.platform-sub { font-size:12px;color:var(--ink-dim); }
+.platform-price {
+  font-family:var(--font-display);
+  font-size:18px;font-weight:800;
+  color:var(--green);
+}
+
+/* CTA section */
+.upsell-banner {
+  margin:0 16px 24px;
+  background:linear-gradient(135deg,var(--amber) 0%,#C4642A 100%);
+  border-radius:20px;
+  padding:24px;
+  color:#fff;
+  display:none;
+}
+.upsell-banner.visible { display:block; }
+.upsell-title {
+  font-family:var(--font-display);
+  font-size:20px;font-weight:800;margin-bottom:8px;
+}
+.upsell-desc { font-size:13px;opacity:0.85;line-height:1.6;margin-bottom:16px; }
+.upsell-btn {
+  background:#fff;color:var(--amber);
+  border:none;border-radius:10px;
+  padding:12px 24px;
+  font-size:14px;font-weight:700;
+  font-family:var(--font-display);
+  cursor:pointer;
+  transition:all .2s;
+}
+.upsell-btn:hover { transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,0.15); }
+
+/* New analysis btn */
+.btn-new {
+  width:calc(100% - 32px);margin:0 16px 24px;
+  background:transparent;
+  border:2px solid var(--border);
+  border-radius:14px;padding:16px;
+  font-family:var(--font-display);
+  font-size:16px;font-weight:700;
+  color:var(--ink-soft);
+  cursor:pointer;
+  transition:all .2s;
+  display:none;
+}
+.btn-new:hover { border-color:var(--ink);color:var(--ink); }
+.btn-new.visible { display:block; }
+
+/* ── RECENT ── */
+.recent-section {
+  padding:0 16px 32px;
+}
+.recent-title {
+  font-family:var(--font-display);
+  font-size:18px;font-weight:800;
+  margin-bottom:14px;color:var(--ink);
+}
+.recent-list { display:flex;flex-direction:column;gap:10px; }
+.recent-item {
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:14px 16px;
+  display:flex;align-items:center;gap:14px;
+  cursor:pointer;
+  transition:all .2s;
+}
+.recent-item:hover { border-color:var(--green);transform:translateX(3px); }
+.recent-emoji { font-size:26px; }
+.recent-info { flex:1; }
+.recent-name { font-size:14px;font-weight:600; }
+.recent-meta { font-size:12px;color:var(--ink-dim); }
+.recent-price {
+  font-family:var(--font-display);
+  font-size:18px;font-weight:800;
+  color:var(--green);
+}
+
+/* Error state */
+.error-msg {
+  background:var(--red-light);
+  border:1px solid rgba(193,68,14,0.2);
+  border-radius:12px;padding:14px 16px;
+  font-size:13px;color:var(--red);
+  margin:0 24px 16px;
+  display:none;
+}
+.error-msg.visible { display:block; }
+
+/* ── BOTTOM NAV ── */
+.bottom-nav {
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--card);
+  border-top:1px solid var(--border);
+  display:flex;justify-content:space-around;
+  padding:10px 0 20px;
+  z-index:100;
+}
+.nav-item {
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  cursor:pointer;padding:4px 16px;
+  opacity:0.4;transition:opacity .2s;
+}
+.nav-item.active { opacity:1; }
+.nav-icon { font-size:22px; }
+.nav-label { font-size:10px;font-weight:600;letter-spacing:0.5px; }
+
+/* pad for bottom nav */
+.pad { height:90px; }
+
+/* MODAL - paywall */
+.modal-overlay {
+  position:fixed;inset:0;background:rgba(26,24,20,0.6);
+  z-index:200;display:none;align-items:flex-end;justify-content:center;
+  backdrop-filter:blur(4px);
+}
+.modal-overlay.open { display:flex; }
+.modal {
+  background:var(--card);
+  border-radius:28px 28px 0 0;
+  padding:32px 24px 40px;
+  max-width:480px;width:100%;
+  animation:slideUp .35s cubic-bezier(.23,1,.32,1);
+}
+@keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+.modal-handle {
+  width:40px;height:4px;background:var(--border);
+  border-radius:100px;margin:0 auto 24px;
+}
+.modal-title {
+  font-family:var(--font-display);
+  font-size:26px;font-weight:800;
+  text-align:center;margin-bottom:8px;letter-spacing:-0.5px;
+}
+.modal-sub {
+  text-align:center;font-size:14px;color:var(--ink-soft);
+  margin-bottom:28px;line-height:1.6;
+}
+.plan-card {
+  border:2px solid var(--border);
+  border-radius:16px;padding:20px;
+  margin-bottom:12px;cursor:pointer;
+  transition:all .2s;position:relative;
+}
+.plan-card.featured {
+  border-color:var(--green);background:var(--green-light);
+}
+.plan-badge {
+  position:absolute;top:-10px;right:16px;
+  background:var(--green);color:#fff;
+  font-size:10px;font-weight:700;
+  letter-spacing:1px;text-transform:uppercase;
+  padding:3px 10px;border-radius:100px;
+}
+.plan-name { font-size:15px;font-weight:700;margin-bottom:3px; }
+.plan-price {
+  font-family:var(--font-display);
+  font-size:28px;font-weight:800;
+  color:var(--green);letter-spacing:-1px;
+}
+.plan-price span { font-size:14px;font-weight:400;color:var(--ink-dim); }
+.plan-features { font-size:13px;color:var(--ink-soft);margin-top:8px;line-height:1.6; }
+.modal-cta {
+  width:100%;background:var(--green);color:#fff;
+  border:none;border-radius:14px;padding:18px;
+  font-family:var(--font-display);
+  font-size:18px;font-weight:700;
+  cursor:pointer;margin-top:8px;
+  transition:all .2s;
+}
+.modal-cta:hover { background:#245C42; }
+.modal-skip {
+  width:100%;background:none;border:none;
+  font-size:13px;color:var(--ink-dim);
+  cursor:pointer;margin-top:14px;padding:8px;
+  font-family:var(--font-body);
+}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="logo">Zmiana<span>Wartości</span></div>
+  <div class="usage-badge" onclick="openPaywall()">
+    <div class="usage-dot"></div>
+    <span id="usageText">2 z 3 darmowych</span>
+  </div>
+</div>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-eyebrow">🤖 AI Wycena</div>
+  <h1>Ile warte są<br>Twoje <em>rzeczy?</em></h1>
+  <p>Zrób zdjęcie, opisz przedmiot — AI poda Ci najlepszą cenę sprzedaży na OLX, Vinted i innych platformach.</p>
+</div>
+
+<!-- MAIN FORM CARD -->
+<div class="main-card" id="mainCard">
+
+  <!-- PHOTO UPLOAD -->
+  <div class="upload-zone">
+    <span class="upload-label">📷 Zdjęcia przedmiotu</span>
+    <div class="drop-area" id="dropArea">
+      <input type="file" accept="image/*" multiple onchange="handleFiles(this.files)" id="fileInput">
+      <div class="drop-icon">📸</div>
+      <div class="drop-title">Dodaj zdjęcia</div>
+      <div class="drop-sub">Dotknij lub przeciągnij — do 5 zdjęć</div>
+    </div>
+    <div class="preview-grid" id="previewGrid" style="display:none"></div>
+  </div>
+
+  <!-- FORM FIELDS -->
+  <div class="form-zone">
+    <div class="field-group">
+      <label class="field-label">Nazwa przedmiotu</label>
+      <input type="text" class="field-input" id="itemName" placeholder="np. iPhone 13 Pro 256GB Grafitowy">
+    </div>
+
+    <div class="field-row">
+      <div class="field-group">
+        <label class="field-label">Kategoria</label>
+        <select class="field-input" id="itemCat">
+          <option value="">Wybierz...</option>
+          <option value="Elektronika">📱 Elektronika</option>
+          <option value="Odzież">👕 Odzież</option>
+          <option value="Meble">🛋️ Meble</option>
+          <option value="Sport">⚽ Sport</option>
+          <option value="Dom i ogród">🏡 Dom i ogród</option>
+          <option value="Zabawki">🧸 Zabawki</option>
+          <option value="Książki">📚 Książki</option>
+          <option value="Motoryzacja">🚗 Motoryzacja</option>
+          <option value="Inne">📦 Inne</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Rok zakupu</label>
+        <input type="number" class="field-input" id="itemYear" placeholder="np. 2022" min="1990" max="2025">
+      </div>
+    </div>
+
+    <div class="field-group">
+      <label class="field-label">Stan</label>
+      <div class="condition-pills">
+        <div class="pill" onclick="selectCondition('Nowy')">✨ Nowy</div>
+        <div class="pill active" onclick="selectCondition('Bardzo dobry')">👍 Bardzo dobry</div>
+        <div class="pill" onclick="selectCondition('Dobry')">🙂 Dobry</div>
+        <div class="pill" onclick="selectCondition('Używany')">🔧 Używany</div>
+        <div class="pill" onclick="selectCondition('Do naprawy')">🛠️ Do naprawy</div>
+      </div>
+    </div>
+
+    <div class="field-group">
+      <label class="field-label">Dodatkowy opis (opcjonalnie)</label>
+      <input type="text" class="field-input" id="itemDesc" placeholder="np. Pełen komplet, bez rys, z pudełkiem">
+    </div>
+  </div>
+
+  <!-- ERROR -->
+  <div class="error-msg" id="errorMsg"></div>
+
+  <!-- ANALYZE -->
+  <div class="analyze-zone">
+    <button class="btn-analyze" onclick="runAnalysis()" id="analyzeBtn">
+      <span class="btn-icon">✨</span> Wycena AI — za darmo
+    </button>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div class="loading-card" id="loadingCard">
+  <div class="loader-ring"></div>
+  <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;">AI analizuje przedmiot...</div>
+  <p style="font-size:13px;color:var(--ink-dim);margin-top:6px;">Sprawdzamy ceny na 8 platformach</p>
+  <div class="loading-steps">
+    <div class="loading-step active" id="step1"><div class="step-dot"></div>Rozpoznawanie przedmiotu</div>
+    <div class="loading-step" id="step2"><div class="step-dot"></div>Analiza rynku OLX</div>
+    <div class="loading-step" id="step3"><div class="step-dot"></div>Analiza rynku Vinted</div>
+    <div class="loading-step" id="step4"><div class="step-dot"></div>Kalkulacja optymalnej ceny</div>
+  </div>
+</div>
+
+<!-- RESULT CARD -->
+<div class="result-card" id="resultCard">
+  <div class="result-header">
+    <div>
+      <div class="result-label">Wycena AI</div>
+      <div class="result-name" id="rName">—</div>
+      <div class="result-condition" id="rCond">—</div>
+    </div>
+    <div class="price-bubble">
+      <div class="price-range-label">Cena optymalna</div>
+      <div class="price-main" id="rPrice">—</div>
+      <div class="price-range" id="rRange">—</div>
+    </div>
+  </div>
+
+  <div class="result-body">
+
+    <!-- Score -->
+    <div class="score-section">
+      <div class="score-label-row">
+        <span class="score-title">Szansa szybkiej sprzedaży</span>
+        <span class="score-value" id="rScoreVal">—</span>
+      </div>
+      <div class="score-bar">
+        <div class="score-fill" id="rScoreFill" style="width:0%"></div>
+      </div>
+    </div>
+
+    <!-- Insights chips -->
+    <div class="insights-grid" id="rInsights"></div>
+
+    <!-- Tips -->
+    <div class="tips-section">
+      <div class="tips-title">💡 Wskazówki sprzedaży</div>
+      <div id="rTips"></div>
+    </div>
+
+    <!-- Platforms -->
+    <div class="platforms-section">
+      <div class="platforms-title">📊 Zalecane platformy</div>
+      <div id="rPlatforms"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- UPSELL -->
+<div class="upsell-banner" id="upsellBanner">
+  <div class="upsell-title">🚀 Odblokuj pełną moc</div>
+  <div class="upsell-desc">Wyczerpałeś darmowe wyceny. Z planem Premium dostasz nieograniczone wyceny, historię cen i alerty cenowe.</div>
+  <button class="upsell-btn" onclick="openPaywall()">Kup Premium — 9,99 zł/mies.</button>
+</div>
+
+<!-- NEW ANALYSIS BTN -->
+<button class="btn-new" id="btnNew" onclick="resetApp()">← Nowa wycena</button>
+
+<!-- RECENT -->
+<div class="recent-section" id="recentSection">
+  <div class="recent-title">📋 Ostatnie wyceny</div>
+  <div class="recent-list" id="recentList">
+    <div class="recent-item">
+      <div class="recent-emoji">📱</div>
+      <div class="recent-info">
+        <div class="recent-name">iPhone 12 64GB</div>
+        <div class="recent-meta">Bardzo dobry · Elektronika · dziś</div>
+      </div>
+      <div class="recent-price">890 zł</div>
+    </div>
+    <div class="recent-item">
+      <div class="recent-emoji">👟</div>
+      <div class="recent-info">
+        <div class="recent-name">Nike Air Max 270, r. 42</div>
+        <div class="recent-meta">Dobry · Odzież · wczoraj</div>
+      </div>
+      <div class="recent-price">165 zł</div>
+    </div>
+    <div class="recent-item">
+      <div class="recent-emoji">🎮</div>
+      <div class="recent-info">
+        <div class="recent-name">PS5 + 2 pady + gry</div>
+        <div class="recent-meta">Bardzo dobry · Elektronika · 2 dni temu</div>
+      </div>
+      <div class="recent-price">2 100 zł</div>
+    </div>
+  </div>
+</div>
+
+<div class="pad"></div>
+
+<!-- BOTTOM NAV -->
+<div class="bottom-nav">
+  <div class="nav-item active">
+    <div class="nav-icon">🔍</div>
+    <div class="nav-label">Wycena</div>
+  </div>
+  <div class="nav-item">
+    <div class="nav-icon">📋</div>
+    <div class="nav-label">Historia</div>
+  </div>
+  <div class="nav-item">
+    <div class="nav-icon">📈</div>
+    <div class="nav-label">Trendy</div>
+  </div>
+  <div class="nav-item">
+    <div class="nav-icon">👤</div>
+    <div class="nav-label">Profil</div>
+  </div>
+</div>
+
+<!-- PAYWALL MODAL -->
+<div class="modal-overlay" id="paywallModal" onclick="closePaywall(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Odblokuj Premium 🚀</div>
+    <div class="modal-sub">Sprzedawaj mądrzej — z nieograniczonymi wycenami AI i historią cen rynkowych.</div>
+
+    <div class="plan-card" style="margin-bottom:10px;">
+      <div class="plan-name">Miesięczny</div>
+      <div class="plan-price">9,99 <span>zł / mies.</span></div>
+      <div class="plan-features">✓ Nieograniczone wyceny<br>✓ Historia cen 12 mies.<br>✓ Alerty cenowe</div>
+    </div>
+
+    <div class="plan-card featured">
+      <div class="plan-badge">Najlepszy wybór</div>
+      <div class="plan-name">Roczny</div>
+      <div class="plan-price">59,99 <span>zł / rok</span></div>
+      <div class="plan-features">✓ Wszystko z planu mies.<br>✓ Analiza zdjęć AI<br>✓ Eksport do CSV<br>✓ Oszczędzasz 60 zł</div>
+    </div>
+
+    <button class="modal-cta">Zacznij Premium</button>
+    <button class="modal-skip" onclick="closePaywall()">Zostań przy darmowym</button>
+  </div>
+</div>
+
+<script>
+// ── STATE ──
+let selectedCondition = 'Bardzo dobry';
+let uploadedImages = [];
+let usageCount = 1; // already used 1
+const MAX_FREE = 3;
+
+// ── FILES ──
+function handleFiles(files) {
+  Array.from(files).slice(0, 5).forEach(f => {
+    const url = URL.createObjectURL(f);
+    uploadedImages.push(url);
+  });
+  renderPreviews();
+}
+
+function renderPreviews() {
+  const grid = document.getElementById('previewGrid');
+  grid.style.display = uploadedImages.length ? 'grid' : 'none';
+  grid.innerHTML = uploadedImages.map((url, i) => `
+    <div class="preview-remove">
+      <img src="${url}" class="preview-img">
+      <button class="remove-btn" onclick="removeImg(${i})">✕</button>
+    </div>
+  `).join('');
+}
+
+function removeImg(i) {
+  uploadedImages.splice(i, 1);
+  renderPreviews();
+}
+
+// ── CONDITION ──
+function selectCondition(c) {
+  selectedCondition = c;
+  document.querySelectorAll('.pill').forEach(p => {
+    p.classList.toggle('active', p.textContent.includes(c));
+  });
+}
+
+// ── ANALYSIS ──
+async function runAnalysis() {
+  const name = document.getElementById('itemName').value.trim();
+  const cat  = document.getElementById('itemCat').value;
+  const year = document.getElementById('itemYear').value;
+  const desc = document.getElementById('itemDesc').value.trim();
+  const errorEl = document.getElementById('errorMsg');
+
+  errorEl.classList.remove('visible');
+
+  if (!name) {
+    errorEl.textContent = '⚠️ Podaj nazwę przedmiotu, aby kontynuować.';
+    errorEl.classList.add('visible');
+    return;
+  }
+
+  if (usageCount >= MAX_FREE) {
+    openPaywall();
+    return;
+  }
+
+  // show loading
+  document.getElementById('mainCard').style.display = 'none';
+  document.getElementById('recentSection').style.display = 'none';
+  document.getElementById('loadingCard').classList.add('visible');
+  document.getElementById('resultCard').classList.remove('visible');
+  document.getElementById('btnNew').classList.remove('visible');
+  document.getElementById('upsellBanner').classList.remove('visible');
+
+  // animate steps
+  animateSteps();
+
+  try {
+    // ── Wywołanie NASZEGO backendu — klucz API jest bezpieczny na serwerze ──
+    const response = await fetch('/api/wycena', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        category: cat,
+        year,
+        condition: selectedCondition,
+        description: desc
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Błąd serwera');
+    }
+
+    usageCount++;
+    updateUsageBadge();
+
+    setTimeout(() => {
+      showResult(result, name, cat, selectedCondition);
+    }, 400);
+
+  } catch (e) {
+    document.getElementById('loadingCard').classList.remove('visible');
+    document.getElementById('mainCard').style.display = 'block';
+    document.getElementById('recentSection').style.display = 'block';
+    errorEl.textContent = '⚠️ ' + (e.message || 'Błąd połączenia. Spróbuj ponownie.');
+    errorEl.classList.add('visible');
+  }
+}
+
+
+Podaj realistyczne polskie ceny w złotych. sellChance to liczba 0-100.`;
+}
+
+function animateSteps() {
+  const steps = ['step1','step2','step3','step4'];
+  let i = 0;
+  const interval = setInterval(() => {
+    if (i > 0) {
+      document.getElementById(steps[i-1]).classList.remove('active');
+      document.getElementById(steps[i-1]).classList.add('done');
+    }
+    if (i < steps.length) {
+      document.getElementById(steps[i]).classList.add('active');
+      i++;
+    } else {
+      clearInterval(interval);
+    }
+  }, 700);
+}
+
+function showResult(r, name, cat, condition) {
+  document.getElementById('loadingCard').classList.remove('visible');
+
+  // Header
+  document.getElementById('rName').textContent = name;
+  document.getElementById('rCond').textContent = `${condition} · ${cat || 'Różne'}`;
+  document.getElementById('rPrice').textContent = r.optimalPrice || '—';
+  document.getElementById('rRange').textContent = `${r.priceMin} – ${r.priceMax}`;
+
+  // Score
+  const score = r.sellChance || 70;
+  document.getElementById('rScoreVal').textContent = `${score}%`;
+  const scoreColor = score >= 70 ? 'var(--green)' : score >= 40 ? 'var(--amber)' : 'var(--red)';
+  document.getElementById('rScoreVal').style.color = scoreColor;
+  setTimeout(() => {
+    document.getElementById('rScoreFill').style.width = score + '%';
+    document.getElementById('rScoreFill').style.background = `linear-gradient(90deg, ${scoreColor}, ${scoreColor}88)`;
+  }, 100);
+
+  // Insights
+  document.getElementById('rInsights').innerHTML = `
+    <div class="insight-chip">
+      <div class="insight-chip-label">Utrata wartości</div>
+      <div class="insight-chip-value">${r.depreciation || '—'}</div>
+    </div>
+    <div class="insight-chip">
+      <div class="insight-chip-label">Czas sprzedaży</div>
+      <div class="insight-chip-value">${r.daysToSell || '—'}</div>
+    </div>
+    <div class="insight-chip">
+      <div class="insight-chip-label">Popyt na rynku</div>
+      <div class="insight-chip-value">${r.demand || '—'}</div>
+    </div>
+    <div class="insight-chip">
+      <div class="insight-chip-label">Kategoria</div>
+      <div class="insight-chip-value">${cat || 'Różne'}</div>
+    </div>
+  `;
+
+  // Tips
+  const tips = r.tips || [];
+  document.getElementById('rTips').innerHTML = tips.map(t => `
+    <div class="tip-item">
+      <div class="tip-icon ${t.type}">${t.icon}</div>
+      <div class="tip-text">${t.text}</div>
+    </div>
+  `).join('');
+
+  // Platforms
+  const platforms = r.platforms || [];
+  document.getElementById('rPlatforms').innerHTML = platforms.map(p => `
+    <div class="platform-row">
+      <div class="platform-info">
+        <div class="platform-logo" style="background:${p.bg};color:${p.color}">${p.emoji}</div>
+        <div>
+          <div class="platform-name">${p.name}</div>
+          <div class="platform-sub">${p.sub}</div>
+        </div>
+      </div>
+      <div class="platform-price">${p.price}</div>
+    </div>
+  `).join('');
+
+  document.getElementById('resultCard').classList.add('visible');
+  document.getElementById('btnNew').classList.add('visible');
+
+  // Show upsell if last free
+  if (usageCount >= MAX_FREE) {
+    document.getElementById('upsellBanner').classList.add('visible');
+  }
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── RESET ──
+function resetApp() {
+  document.getElementById('mainCard').style.display = 'block';
+  document.getElementById('resultCard').classList.remove('visible');
+  document.getElementById('loadingCard').classList.remove('visible');
+  document.getElementById('upsellBanner').classList.remove('visible');
+  document.getElementById('btnNew').classList.remove('visible');
+  document.getElementById('recentSection').style.display = 'block';
+  document.getElementById('errorMsg').classList.remove('visible');
+  document.getElementById('itemName').value = '';
+  document.getElementById('itemCat').value = '';
+  document.getElementById('itemYear').value = '';
+  document.getElementById('itemDesc').value = '';
+  uploadedImages = [];
+  renderPreviews();
+  selectCondition('Bardzo dobry');
+  // reset step classes
+  ['step1','step2','step3','step4'].forEach(s => {
+    const el = document.getElementById(s);
+    el.classList.remove('active','done');
+  });
+  document.getElementById('step1').classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── USAGE BADGE ──
+function updateUsageBadge() {
+  const remaining = Math.max(0, MAX_FREE - usageCount);
+  const el = document.getElementById('usageText');
+  if (remaining === 0) {
+    el.textContent = 'Kup Premium';
+    document.querySelector('.usage-badge').style.background = 'var(--amber-light)';
+    document.querySelector('.usage-badge').style.borderColor = 'var(--amber)';
+    document.querySelector('.usage-badge').style.color = 'var(--amber)';
+    document.querySelector('.usage-dot').style.background = 'var(--amber)';
+  } else {
+    el.textContent = `${remaining} z ${MAX_FREE} darmowych`;
+  }
+}
+
+// ── PAYWALL ──
+function openPaywall() {
+  document.getElementById('paywallModal').classList.add('open');
+}
+function closePaywall(e) {
+  if (!e || e.target === document.getElementById('paywallModal')) {
+    document.getElementById('paywallModal').classList.remove('open');
+  }
+}
+
+// Drag & drop
+const dropArea = document.getElementById('dropArea');
+dropArea.addEventListener('dragover', e => { e.preventDefault(); dropArea.classList.add('drag'); });
+dropArea.addEventListener('dragleave', () => dropArea.classList.remove('drag'));
+dropArea.addEventListener('drop', e => {
+  e.preventDefault();
+  dropArea.classList.remove('drag');
+  handleFiles(e.dataTransfer.files);
+});
+</script>
+</body>
+</html>
